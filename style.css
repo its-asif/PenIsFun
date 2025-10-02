@@ -1,0 +1,87 @@
+#draw-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999998;
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  cursor: crosshair;
+}
+
+/* Toolbar */
+#draw-toolbar {
+  position: fixed;
+  top: 20px;
+  left: calc(25%);
+  z-index: 999999;
+  background: rgba(30,30,30,0.95);
+  color: white;
+  padding: 6px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: sans-serif;
+  cursor: move;
+  transition: width 0.2s, height 0.2s;
+}
+
+#draw-toolbar.minimized {
+  padding: 4px;
+}
+
+#draw-toolbar button {
+  padding: 2px 6px;
+  font-size: 14px;
+  background: #444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#draw-toolbar button:hover {
+  background: #666;
+}
+
+#draw-toolbar input[type="range"] {
+  width: 80px;
+}
+#draw-toolbar input[type="color"] {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+}
+
+#draw-toolbar .panel {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+#draw-toolbar.minimized .panel {
+  display: none;
+}
+
+#draw-toolbar .core {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#draw-toolbar.minimized {
+  gap: 4px;
+}
+
+#draw-toolbar #minimize {
+  background: #333;
+  font-weight: bold;
+}
+#draw-toolbar #minimize:hover {
+  background: #555;
+}
+
+.eraser-cursor {
+  cursor: none !important;
+}

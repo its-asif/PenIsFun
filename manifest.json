@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "PenIsFun",
+  "version": "2.0",
+  "description": "Draw, erase, and annotate on any web page!",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_title": "Draw on Screen"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-draw": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Q"
+      },
+      "description": "Toggle drawing mode"
+    }
+  }
+}
