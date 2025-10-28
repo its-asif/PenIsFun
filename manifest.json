@@ -1,27 +1,29 @@
 {
   "manifest_version": 3,
   "name": "PenIsFun",
+  "short_name": "Pen Is Fun",
   "version": "2.0",
   "description": "Draw, erase, and annotate on any web page!",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "minimum_chrome_version": "88",
+  "permissions": ["activeTab", "scripting"],
   "action": {
     "default_title": "Draw on Screen",
-    "default_icon": "./assets/icon.png"
+    "default_icon": "assets/icon.png"
   },
   "background": {
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "./assets/icon.png",
-    "48": "./assets/icon.png",
-    "128": "./assets/icon.png"
+    "16": "assets/icon.png",
+    "48": "assets/icon.png",
+    "128": "assets/icon.png"
   },
   "commands": {
-    "toggle-draw": {
+    "_execute_action": {
       "suggested_key": {
         "default": "Ctrl+Shift+Q"
-      },
-      "description": "Toggle drawing mode"
+      }
     }
-  }
+  },
+  "homepage_url": "https://github.com/its-asif/PenIsFun"
 }

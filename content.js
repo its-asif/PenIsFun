@@ -31,6 +31,63 @@ if (!document.getElementById("draw-canvas")) {
   let minimized = false; // not persisted (can be added later)
   const drawingStorageKey = "drawImage:" + location.host + location.pathname; // per-page persistence key
 
+  // === Undo stack (dataURL snapshots) ===
+  const UNDO_LIMIT = 25;
+  const undoStack = [];
+  const redoStack = [];
+
+  function pushUndoSnapshot() {
+    try {
+      const dataURL = canvas.toDataURL("image/png");
+      undoStack.push(dataURL);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    } catch (e) {
+      // Ignore snapshot failures (e.g., rare security restrictions)
+    }
+  }
+
+  function pushRedoSnapshot() {
+    try {
+      const dataURL = canvas.toDataURL("image/png");
+      redoStack.push(dataURL);
+      if (redoStack.length > UNDO_LIMIT) redoStack.shift();
+    } catch (e) {
+      // Ignore snapshot failures
+    }
+  }
+
+  function clearRedoStack() {
+    redoStack.length = 0;
+  }
+
+  function undoLast() {
+    if (undoStack.length === 0) return;
+    // Save current for redo, then restore previous from undo
+    pushRedoSnapshot();
+    const prev = undoStack.pop();
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      scheduleSave();
+    };
+    img.src = prev;
+  }
+
+  function redoNext() {
+    if (redoStack.length === 0) return;
+    // Save current to undo, then apply redo snapshot
+    pushUndoSnapshot();
+    const next = redoStack.pop();
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      scheduleSave();
+    };
+    img.src = next;
+  }
+
   // === Toolbar container ===
   const toolbar = document.createElement("div");
   toolbar.id = "draw-toolbar";
@@ -145,6 +202,8 @@ if (!document.getElementById("draw-canvas")) {
     });
 
     clearBtn.addEventListener("click", () => {
+      pushUndoSnapshot();
+      clearRedoStack();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       localStorage.removeItem(drawingStorageKey);
     });
@@ -153,6 +212,7 @@ if (!document.getElementById("draw-canvas")) {
       canvas.remove();
       toolbar.remove();
       removeEraserCursor();
+      document.removeEventListener("keydown", keydownHandler, true);
     });
 
     minimizeBtn.addEventListener("click", () => {
@@ -173,6 +233,9 @@ if (!document.getElementById("draw-canvas")) {
 
   // === Drawing logic ===
   function startDraw(e) {
+    // Snapshot before a new stroke so Ctrl+Z will revert this stroke
+    pushUndoSnapshot();
+    clearRedoStack();
     drawing = true;
     ctx.beginPath();
     ctx.moveTo(e.clientX, e.clientY);
@@ -242,4 +305,35 @@ if (!document.getElementById("draw-canvas")) {
     }
   });
   document.addEventListener("mouseup", () => { isDragging = false; });
+
+  // === Keyboard shortcuts ===
+  function keydownHandler(e) {
+    // Avoid interfering with typing in inputs/contenteditable
+    const ae = document.activeElement;
+    if (ae && ((ae.tagName === "INPUT") || (ae.tagName === "TEXTAREA") || ae.isContentEditable)) {
+      return;
+    }
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    // Undo: Ctrl+Z or Cmd+Z
+    if ((isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      e.stopPropagation();
+      undoLast();
+      return;
+    }
+    // Redo: Ctrl+Y (Win/Linux) or Cmd+Shift+Z (macOS)
+    if (!isMac && e.ctrlKey && !e.altKey && (e.key === "y" || e.key === "Y")) {
+      e.preventDefault();
+      e.stopPropagation();
+      redoNext();
+      return;
+    }
+    if (isMac && e.metaKey && e.shiftKey && !e.altKey && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      e.stopPropagation();
+      redoNext();
+      return;
+    }
+  }
+  document.addEventListener("keydown", keydownHandler, true);
 }
