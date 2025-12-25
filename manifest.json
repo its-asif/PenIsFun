@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PenIsFun",
   "short_name": "Pen Is Fun",
-  "version": "2.0",
+  "version": "2.2",
   "description": "Draw, erase, and annotate on any web page!",
   "minimum_chrome_version": "88",
   "permissions": ["activeTab", "scripting"],
