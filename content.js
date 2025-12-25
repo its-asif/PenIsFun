@@ -209,10 +209,10 @@ if (!document.getElementById("draw-canvas")) {
     });
 
     exitBtn.addEventListener("click", () => {
+      teardown();
       canvas.remove();
       toolbar.remove();
       removeEraserCursor();
-      document.removeEventListener("keydown", keydownHandler, true);
     });
 
     minimizeBtn.addEventListener("click", () => {
@@ -292,19 +292,23 @@ if (!document.getElementById("draw-canvas")) {
 
   // === Make Toolbar Draggable ===
   let isDragging = false, offsetX = 0, offsetY = 0;
-  toolbar.addEventListener("mousedown", (e) => {
+  function toolbarMouseDown(e) {
     if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
     isDragging = true;
     offsetX = e.clientX - toolbar.offsetLeft;
     offsetY = e.clientY - toolbar.offsetTop;
-  });
-  document.addEventListener("mousemove", (e) => {
-    if (isDragging) {
-      toolbar.style.left = (e.clientX - offsetX) + "px";
-      toolbar.style.top = (e.clientY - offsetY) + "px";
-    }
-  });
-  document.addEventListener("mouseup", () => { isDragging = false; });
+  }
+  function toolbarMouseMove(e) {
+    if (!isDragging) return;
+    toolbar.style.left = (e.clientX - offsetX) + "px";
+    toolbar.style.top = (e.clientY - offsetY) + "px";
+  }
+  function toolbarMouseUp() {
+    isDragging = false;
+  }
+  toolbar.addEventListener("mousedown", toolbarMouseDown);
+  document.addEventListener("mousemove", toolbarMouseMove);
+  document.addEventListener("mouseup", toolbarMouseUp);
 
   // === Keyboard shortcuts ===
   function keydownHandler(e) {
@@ -334,6 +338,22 @@ if (!document.getElementById("draw-canvas")) {
       redoNext();
       return;
     }
+  }
+  function teardown() {
+    window.removeEventListener("resize", resizeCanvas);
+    canvas.removeEventListener("mousedown", startDraw);
+    canvas.removeEventListener("mousemove", draw);
+    canvas.removeEventListener("mouseup", stopDraw);
+    canvas.removeEventListener("mouseleave", stopDraw);
+    toolbar.removeEventListener("mousedown", toolbarMouseDown);
+    document.removeEventListener("mousemove", toolbarMouseMove);
+    document.removeEventListener("mouseup", toolbarMouseUp);
+    document.removeEventListener("keydown", keydownHandler, true);
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    drawing = false;
   }
   document.addEventListener("keydown", keydownHandler, true);
 }
