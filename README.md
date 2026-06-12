@@ -1,133 +1,61 @@
 # PenIsFun – Draw on Any Web Page
 
-PenIsFun lets you draw and erase directly on top of any website. Good for quick markups, teaching, brainstorming, or jotting ideas.
+PenIsFun is a modern, high-performance browser extension that lets you draw, erase, write, and place annotations directly on top of any web page. Built with vector accuracy, it's perfect for quick markups, online teaching, code reviews, brainstorming sessions, or jotting down ideas.
 
-## Privacy
-* No external servers
-* No tracking
-* Data stays in local browser storage keyed to the site and page path
-* You decide when to clear it
+## Key Features
 
-
-## Quick Start (Skip the Details)
-1. Activate: click the extension icon or press `Ctrl + Shift + Q`.
-2. Draw with the pen. Switch to eraser if needed.
-3. Minimize if the toolbar gets in the way.
-4. Refresh? Your drawing is still there.
-5. Clear to remove it, Exit to hide tools (without clearing).
-
-More info below if you want it.
-
----
-<details>
-<summary><strong>What It Does</strong></summary>
-
-* Freehand drawing (color + line thickness)
-* Adjustable eraser
-* Light or dark toolbar style
-* Minimize into a compact strip
-* Auto‑saves per page (survives refresh)
-* Clear wipes and deletes saved copy
-* Exit hides tools but keeps drawing saved
-* Works via button or shortcut
-
-</details>
-
-<details>
-<summary><strong>Getting Started</strong></summary>
-
-1. Install in a Chromium-based browser (Chrome, Edge, Brave, etc.).
-2. Open a page you want to annotate.
-3. Click the extension icon (pin it for convenience) or press the shortcut (default: Ctrl + Shift + Q).
-4. Start drawing immediately.
-
-</details>
-
-<details>
-<summary><strong>Toolbar (Full & Minimized)</strong></summary>
-
-Full mode includes: color picker, pen size, eraser size, theme toggle, pen, eraser, clear, exit, minimize.
-
-Minimized mode shows: pen, eraser, clear, exit, expand.
-
-Active tool is reflected in the label.
-
-</details>
-
-<details>
-<summary><strong>Saving & Persistence</strong></summary>
-
-* Saves shortly after you draw or erase.
-* Stored per exact page (URL path).
-* Clear removes both canvas and saved version.
-* Exit only hides the UI; reactivate to restore.
-
-</details>
-
-<details>
-<summary><strong>Keyboard Shortcut</strong></summary>
-
-Default: `Ctrl + Shift + Q` (you can change it in browser extension shortcut settings).
-
-</details>
-
-<details>
-<summary><strong>Erasing</strong></summary>
-
-Adjust eraser size in full mode. A circular outline indicates erase area. Switching back to pen hides it.
-
-</details>
-
-<details>
-<summary><strong>Moving the Toolbar</strong></summary>
-
-Drag the empty space (not buttons/sliders) to reposition.
-
-</details>
-
-<details>
-<summary><strong>FAQ</strong></summary>
-
-**My drawing didn’t save.** Storage may be blocked/full. Try clearing older drawings.
-
-**Export as image?** Not yet; can be added.
-
-**Is data uploaded?** No, it stays local.
-
-**Incognito?** Enable the extension there manually; storage is temporary.
-
-</details>
-
-<details>
-<summary><strong>Privacy</strong></summary>
-
-No external servers. No tracking. Data stays in local storage keyed to site + path. You control clearing.
-
-</details>
-
-<details>
-<summary><strong>Troubleshooting</strong></summary>
-
-| Problem | What to Try |
-|---------|-------------|
-| Toolbar not appearing | Reload the page and click the icon again |
-| Shortcut not working | Check extension shortcut settings |
-| Drawing gone after refresh | URL/path changed (SPA navigation) |
-| Eraser not working | Ensure eraser mode is actually active |
-| Slow performance | Clear very large drawings |
-
-</details>
-
-<details>
-<summary><strong>Possible Future Additions</strong></summary>
-
-Undo/Redo, export as PNG, shapes, text labels, highlighter, layers, stroke-based storage. But thats the future. For now just want to keep it simple.
-
-If you need one sooner, ask.
-
-</details>
+*   **Vector-Based Drawing Engine**: Drawing data is saved as high-fidelity object vectors instead of raw raster bitmaps. This allows drawings to remain perfectly sharp and clear regardless of screen sizes, window resizing, or screen DPI changes.
+*   **Encapsulated Shadow DOM Layout**: The toolbar is injected inside a Shadow DOM, completely isolating extension styles from the host page to prevent CSS leaking or page style overrides.
+*   **Vibrant Glassmorphic UI**: Beautiful, modern translucent panel design supporting dark/light mode switches, drag-to-reposition capabilities, and collapsible minimization.
+*   **Independent Brush Sizes**: The **Pen**, **Highlighter**, and **Eraser** all maintain their own separate size configurations and sliders.
+*   **Comprehensive Annotation Toolkit**:
+    *   **Pen**: Freehand sketching.
+    *   **Highlighter**: Translucent markers utilizing off-screen buffer blending.
+    *   **Eraser**: Clean pathway eraser.
+    *   **Shapes**: Precise Line, Arrow, Rectangle, and Circle creators.
+    *   **Text Label Overlay**: Click-to-type input box with dynamic text sizing based on line width.
+*   **Control Center Options Console**:
+    *   Manage and clear all saved drawing caches across hosts and paths.
+    *   Configure custom keyboard shortcuts for all tools and actions with a dynamic key-combination recorder.
+*   **Touch & Stylus Support**: Fully standardized pointer events ensure compatibility across desktops, tablets, and mobile styluses.
+*   **Local Persistence & Sync**: Drawing data automatically persists locally per-page and updates in real-time across multiple matching browser tabs.
 
 ---
+
+## Quick Start
+1.  **Activate**: Click the extension icon in the toolbar or press `Ctrl + Shift + Q`.
+2.  **Annotate**: Draw with the pen, highlight text, build shapes, or click to add text overlays.
+3.  **Manage Settings**: Click the settings gear icon on the toolbar to customize keyboard shortcuts or clear saved caches.
+4.  **Save/Restore**: Reloading a page or coming back later automatically restores your drawings.
+
+---
+
+## Keyboard Shortcuts Configuration
+
+Default global keyboard combinations are configured out of the box, and can be customized within the Settings options page:
+
+| Action / Tool | Default Keyboard Combination |
+| --- | --- |
+| **Pen Tool** | `Alt + 1` |
+| **Highlighter Tool** | `Alt + 2` |
+| **Eraser Tool** | `Alt + 3` |
+| **Line Tool** | `Alt + 4` |
+| **Arrow Tool** | `Alt + 5` |
+| **Rectangle Tool** | `Alt + 6` |
+| **Circle Tool** | `Alt + 7` |
+| **Text Tool** | `Alt + 8` |
+| **Undo Last Stroke** | `Ctrl + Z` |
+| **Redo Next Stroke** | `Ctrl + Y` |
+| **Clear All (Delete)** | `Ctrl + X` |
+
+---
+
+## Privacy Policy
+*   **100% Local**: No external servers, API endpoints, or database storage are used.
+*   **No Tracking**: Zero user diagnostics, analytics, or behavioral cookies.
+*   **Browser Sandbox**: All drawing elements stay within `chrome.storage.local` on your local device.
+
+---
+
 ## Thanks
-Hope this is useful. Feel free to suggest improvements.
-
+Hope this tool is useful! Feel free to suggest more improvements or custom settings features.

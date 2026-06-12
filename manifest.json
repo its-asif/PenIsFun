@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "PenIsFun",
   "short_name": "Pen Is Fun",
-  "version": "2.0",
+  "version": "3.0",
   "description": "Draw, erase, and annotate on any web page!",
   "minimum_chrome_version": "88",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "storage"],
+  "options_page": "options.html",
   "action": {
     "default_title": "Draw on Screen",
     "default_icon": "assets/icon.png"

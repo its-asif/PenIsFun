@@ -12,3 +12,9 @@ function injectDrawing(tabId) {
 chrome.action.onClicked.addListener((tab) => {
   injectDrawing(tab.id);
 });
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "openOptions") {
+    chrome.runtime.openOptionsPage();
+  }
+});

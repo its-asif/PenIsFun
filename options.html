@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pen Is Fun · Control Center</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="panel">
+    <header class="header">
+      <div>
+        <p class="eyebrow">Settings & Data Console</p>
+        <h1>PenIsFun Control Center</h1>
+        <p class="lede">Manage saved page drawings and configure custom keyboard shortcuts for drawing tools.</p>
+      </div>
+    </header>
+    
+    <div class="layout-grid">
+      <!-- Section 1: Saved Drawings -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>Saved Drawings</h2>
+          <button id="clearAll" class="ghost danger-text" type="button">Clear All</button>
+        </div>
+        <div class="section-body">
+          <div id="status" role="status" aria-live="polite"></div>
+          <p id="emptyState" class="muted">No drawings have been saved yet.</p>
+          <ul id="siteList"></ul>
+        </div>
+      </section>
+
+      <!-- Section 2: Shortcuts Configuration -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>Keyboard Shortcuts</h2>
+          <button id="resetShortcuts" class="ghost" type="button">Reset Defaults</button>
+        </div>
+        <div class="section-body">
+          <p class="section-desc">Click any input field and press your desired shortcut combination.</p>
+          <form id="shortcutsForm" class="shortcuts-grid">
+            <div class="shortcut-row">
+              <label for="shortcut-pen">Pen Tool</label>
+              <input type="text" id="shortcut-pen" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-highlighter">Highlighter</label>
+              <input type="text" id="shortcut-highlighter" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-eraser">Eraser</label>
+              <input type="text" id="shortcut-eraser" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-line">Line Tool</label>
+              <input type="text" id="shortcut-line" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-arrow">Arrow Tool</label>
+              <input type="text" id="shortcut-arrow" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-rect">Rectangle Tool</label>
+              <input type="text" id="shortcut-rect" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-circle">Circle Tool</label>
+              <input type="text" id="shortcut-circle" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-text">Text Tool</label>
+              <input type="text" id="shortcut-text" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-divider"></div>
+            <div class="shortcut-row">
+              <label for="shortcut-undo">Undo Action</label>
+              <input type="text" id="shortcut-undo" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-redo">Redo Action</label>
+              <input type="text" id="shortcut-redo" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-clear">Clear Canvas</label>
+              <input type="text" id="shortcut-clear" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
