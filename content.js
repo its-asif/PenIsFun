@@ -3,15 +3,48 @@ if (!document.getElementById("draw-canvas")) {
   const canvas = document.createElement("canvas");
   canvas.id = "draw-canvas";
   document.body.appendChild(canvas);
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
   // === Off-screen canvas for Highlighter compositing ===
   const tempCanvas = document.createElement("canvas");
-  const tempCtx = tempCanvas.getContext("2d");
+  const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
 
   // === Vector Engine State ===
   let drawingElements = [];
   let legacyImage = null;
+  let scrollMode = false;
+
+  function getCoords(e) {
+    if (!e) {
+      return { x: lastX, y: lastY };
+    }
+    if (scrollMode) {
+      return { x: e.pageX, y: e.pageY };
+    } else {
+      return { x: e.clientX, y: e.clientY };
+    }
+  }
+
+  function adjustElementCoords(element, dx, dy) {
+    const el = { ...element };
+    if (el.points) {
+      el.points = el.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+    }
+    if (el.sx !== undefined) el.sx += dx;
+    if (el.sy !== undefined) el.sy += dy;
+    if (el.ex !== undefined) el.ex += dx;
+    if (el.ey !== undefined) el.ey += dy;
+    if (el.x !== undefined) el.x += dx;
+    if (el.y !== undefined) el.y += dy;
+    return el;
+  }
+
+  function handleScroll() {
+    if (scrollMode) {
+      redrawCanvas();
+    }
+  }
+  window.addEventListener("scroll", handleScroll, { passive: true });
 
   function redrawCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -21,6 +54,11 @@ if (!document.getElementById("draw-canvas")) {
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1.0;
       ctx.drawImage(legacyImage, 0, 0);
+    }
+
+    ctx.save();
+    if (scrollMode) {
+      ctx.translate(-window.scrollX, -window.scrollY);
     }
 
     // 2. Render vector elements in order
@@ -52,6 +90,10 @@ if (!document.getElementById("draw-canvas")) {
         tempCtx.strokeStyle = element.color;
         tempCtx.lineWidth = element.width;
         
+        tempCtx.save();
+        if (scrollMode) {
+          tempCtx.translate(-window.scrollX, -window.scrollY);
+        }
         const pts = element.points;
         if (pts && pts.length > 0) {
           tempCtx.moveTo(pts[0].x, pts[0].y);
@@ -60,10 +102,15 @@ if (!document.getElementById("draw-canvas")) {
           }
           tempCtx.stroke();
         }
+        tempCtx.restore();
         
         ctx.globalCompositeOperation = "source-over";
         ctx.globalAlpha = 0.4;
-        ctx.drawImage(tempCanvas, 0, 0);
+        if (scrollMode) {
+          ctx.drawImage(tempCanvas, window.scrollX, window.scrollY);
+        } else {
+          ctx.drawImage(tempCanvas, 0, 0);
+        }
         ctx.globalAlpha = 1.0;
       } else if (element.type === "eraser") {
         ctx.globalCompositeOperation = "destination-out";
@@ -142,6 +189,8 @@ if (!document.getElementById("draw-canvas")) {
         ctx.fillText(element.text, element.x + 6, element.y);
       }
     });
+
+    ctx.restore();
   }
 
   function resizeCanvas() {
@@ -191,6 +240,7 @@ if (!document.getElementById("draw-canvas")) {
   let highlighterSize = settings.highlighterSize || 15;
   let currentTool = settings.currentTool || "pen";
   let darkMode = settings.darkMode;
+  scrollMode = settings.scrollMode || false;
   let minimized = false;
   
   // Segment-drawing coordinates
@@ -382,7 +432,8 @@ if (!document.getElementById("draw-canvas")) {
       eraserSize,
       highlighterSize,
       currentTool,
-      darkMode
+      darkMode,
+      scrollMode
     }));
   }
 
@@ -395,6 +446,7 @@ if (!document.getElementById("draw-canvas")) {
         const parsed = JSON.parse(storedData);
         if (parsed && parsed.version === "vector-v1") {
           drawingElements = parsed.elements || [];
+          scrollMode = parsed.scrollMode || false;
           if (parsed.legacyDataURL) {
             const img = new Image();
             img.onload = () => {
@@ -405,6 +457,7 @@ if (!document.getElementById("draw-canvas")) {
           } else {
             redrawCanvas();
           }
+          renderToolbar();
           return;
         }
       } catch (e) {
@@ -429,7 +482,8 @@ if (!document.getElementById("draw-canvas")) {
       const serialized = JSON.stringify({
         version: "vector-v1",
         legacyDataURL: legacyImage ? legacyImage.src : null,
-        elements: drawingElements
+        elements: drawingElements,
+        scrollMode: scrollMode
       });
       saveDrawingData(serialized);
     }, 400);
@@ -634,6 +688,9 @@ if (!document.getElementById("draw-canvas")) {
   const minimizeSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
   const expandSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
   const settingsSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  
+  const viewportSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="3" rx="2"/><line x1="12" x2="12" y1="18" y2="21"/><line x1="17" x2="7" y1="21" y2="21"/></svg>`;
+  const scrollSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/><path d="M12 8v8"/><path d="m9 11 3-3 3 3"/><path d="m9 13 3 3 3-3"/></svg>`;
 
   function fullToolbarHTML() {
     let minSize = 1;
@@ -668,6 +725,9 @@ if (!document.getElementById("draw-canvas")) {
           </label>
           <button id="darkmode" title="Toggle Theme">
             ${darkMode ? sunSvg : moonSvg}
+          </button>
+          <button id="toggle-scroll" title="${scrollMode ? 'Switch to Viewport Mode' : 'Switch to Scrollable Mode'}">
+            ${scrollMode ? scrollSvg : viewportSvg}
           </button>
         </div>
         
@@ -738,6 +798,9 @@ if (!document.getElementById("draw-canvas")) {
           <button id="tool-eraser-mini" class="${currentTool === 'eraser' ? 'active' : ''}" title="Eraser Tool">
             ${eraserSvg}
           </button>
+          <button id="toggle-scroll-mini" title="${scrollMode ? 'Switch to Viewport Mode' : 'Switch to Scrollable Mode'}">
+            ${scrollMode ? scrollSvg : viewportSvg}
+          </button>
           <div class="divider"></div>
           <button id="undo" title="Undo">
             ${undoSvg}
@@ -802,6 +865,8 @@ if (!document.getElementById("draw-canvas")) {
     const colorInput = shadowRoot.getElementById("penColor");
     const sizeInput = shadowRoot.getElementById("toolSize");
     const darkModeBtn = shadowRoot.getElementById("darkmode");
+    const toggleScrollBtn = shadowRoot.getElementById("toggle-scroll");
+    const toggleScrollMiniBtn = shadowRoot.getElementById("toggle-scroll-mini");
 
     const penMini = shadowRoot.getElementById("tool-pen-mini");
     const eraserMini = shadowRoot.getElementById("tool-eraser-mini");
@@ -836,6 +901,28 @@ if (!document.getElementById("draw-canvas")) {
         saveSettings();
         renderToolbar();
       });
+    }
+
+    const handleToggleScroll = () => {
+      // Clear all drawings, history, and legacy background to prevent coordinate system clashes on switch
+      undoStack.length = 0;
+      redoStack.length = 0;
+      drawingElements = [];
+      legacyImage = null;
+
+      scrollMode = !scrollMode;
+      saveSettings();
+      renderToolbar();
+      redrawCanvas();
+      removeDrawingData();
+      updateUndoRedoButtons();
+    };
+
+    if (toggleScrollBtn) {
+      toggleScrollBtn.addEventListener("click", handleToggleScroll);
+    }
+    if (toggleScrollMiniBtn) {
+      toggleScrollMiniBtn.addEventListener("click", handleToggleScroll);
     }
 
     if (penMini) {
@@ -964,9 +1051,13 @@ if (!document.getElementById("draw-canvas")) {
 
     const input = document.createElement("input");
     input.type = "text";
-    input.style.position = "fixed";
-    input.style.left = x + "px";
     const fontSize = Math.max(14, penWidth * 4);
+    if (scrollMode) {
+      input.style.position = "absolute";
+    } else {
+      input.style.position = "fixed";
+    }
+    input.style.left = x + "px";
     input.style.top = (y - fontSize / 2 - 4) + "px";
     input.style.color = penColor;
     input.style.fontSize = fontSize + "px";
@@ -1040,11 +1131,12 @@ if (!document.getElementById("draw-canvas")) {
       return;
     }
 
+    const coords = getCoords(e);
     drawing = true;
-    startClickX = e.clientX;
-    startClickY = e.clientY;
-    lastX = e.clientX;
-    lastY = e.clientY;
+    startClickX = coords.x;
+    startClickY = coords.y;
+    lastX = coords.x;
+    lastY = coords.y;
 
     pushUndoSnapshot();
     clearRedoStack();
@@ -1054,10 +1146,10 @@ if (!document.getElementById("draw-canvas")) {
     if (isShape) {
       currentElement = {
         type: currentTool,
-        sx: e.clientX,
-        sy: e.clientY,
-        ex: e.clientX,
-        ey: e.clientY,
+        sx: coords.x,
+        sy: coords.y,
+        ex: coords.x,
+        ey: coords.y,
         color: penColor,
         width: penWidth
       };
@@ -1065,25 +1157,23 @@ if (!document.getElementById("draw-canvas")) {
     } else if (currentTool === "highlighter") {
       currentElement = {
         type: "highlighter",
-        points: [{ x: e.clientX, y: e.clientY }],
+        points: [{ x: coords.x, y: coords.y }],
         color: penColor,
         width: highlighterSize
       };
       cachedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.beginPath();
-      tempCtx.moveTo(e.clientX, e.clientY);
     } else if (currentTool === "pen") {
       currentElement = {
         type: "pen",
-        points: [{ x: e.clientX, y: e.clientY }],
+        points: [{ x: coords.x, y: coords.y }],
         color: penColor,
         width: penWidth
       };
     } else if (currentTool === "eraser") {
       currentElement = {
         type: "eraser",
-        points: [{ x: e.clientX, y: e.clientY }],
+        points: [{ x: coords.x, y: coords.y }],
         width: eraserSize
       };
     }
@@ -1094,33 +1184,66 @@ if (!document.getElementById("draw-canvas")) {
     updateCursor(e);
     if (!drawing || !currentElement) return;
 
+    const coords = getCoords(e);
     const isShape = ["line", "arrow", "rect", "circle"].includes(currentTool);
     if (isShape) {
-      currentElement.ex = e.clientX;
-      currentElement.ey = e.clientY;
+      currentElement.ex = coords.x;
+      currentElement.ey = coords.y;
       ctx.putImageData(cachedImageData, 0, 0);
-      drawShape(currentElement.sx, currentElement.sy, currentElement.ex, currentElement.ey, currentTool);
-    } else if (currentTool === "highlighter") {
-      currentElement.points.push({ x: e.clientX, y: e.clientY });
       
-      tempCtx.lineTo(e.clientX, e.clientY);
+      ctx.save();
+      if (scrollMode) {
+        ctx.translate(-window.scrollX, -window.scrollY);
+      }
+      drawShape(currentElement.sx, currentElement.sy, currentElement.ex, currentElement.ey, currentTool);
+      ctx.restore();
+    } else if (currentTool === "highlighter") {
+      currentElement.points.push({ x: coords.x, y: coords.y });
+      
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.beginPath();
       tempCtx.lineCap = "round";
       tempCtx.lineJoin = "round";
       tempCtx.strokeStyle = penColor;
       tempCtx.lineWidth = highlighterSize;
+      
+      tempCtx.save();
+      if (scrollMode) {
+        tempCtx.translate(-window.scrollX, -window.scrollY);
+      }
+      const pts = currentElement.points;
+      if (pts.length > 0) {
+        tempCtx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          tempCtx.lineTo(pts[i].x, pts[i].y);
+        }
+      }
       tempCtx.stroke();
+      tempCtx.restore();
       
       ctx.putImageData(cachedImageData, 0, 0);
       ctx.globalAlpha = 0.4;
       ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(tempCanvas, 0, 0);
+      
+      ctx.save();
+      if (scrollMode) {
+        ctx.translate(-window.scrollX, -window.scrollY);
+        ctx.drawImage(tempCanvas, window.scrollX, window.scrollY);
+      } else {
+        ctx.drawImage(tempCanvas, 0, 0);
+      }
+      ctx.restore();
       ctx.globalAlpha = 1.0;
     } else if (currentTool === "pen") {
-      currentElement.points.push({ x: e.clientX, y: e.clientY });
+      currentElement.points.push({ x: coords.x, y: coords.y });
       
+      ctx.save();
+      if (scrollMode) {
+        ctx.translate(-window.scrollX, -window.scrollY);
+      }
       ctx.beginPath();
       ctx.moveTo(lastX, lastY);
-      ctx.lineTo(e.clientX, e.clientY);
+      ctx.lineTo(coords.x, coords.y);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.strokeStyle = penColor;
@@ -1128,24 +1251,30 @@ if (!document.getElementById("draw-canvas")) {
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1.0;
       ctx.stroke();
+      ctx.restore();
       
-      lastX = e.clientX;
-      lastY = e.clientY;
+      lastX = coords.x;
+      lastY = coords.y;
     } else if (currentTool === "eraser") {
-      currentElement.points.push({ x: e.clientX, y: e.clientY });
+      currentElement.points.push({ x: coords.x, y: coords.y });
       
+      ctx.save();
+      if (scrollMode) {
+        ctx.translate(-window.scrollX, -window.scrollY);
+      }
       ctx.beginPath();
       ctx.moveTo(lastX, lastY);
-      ctx.lineTo(e.clientX, e.clientY);
+      ctx.lineTo(coords.x, coords.y);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineWidth = eraserSize;
       ctx.globalCompositeOperation = "destination-out";
       ctx.globalAlpha = 1.0;
       ctx.stroke();
+      ctx.restore();
 
-      lastX = e.clientX;
-      lastY = e.clientY;
+      lastX = coords.x;
+      lastY = coords.y;
     }
   }
 
@@ -1153,13 +1282,14 @@ if (!document.getElementById("draw-canvas")) {
     if (!drawing) return;
     drawing = false;
 
-    const dragDistance = Math.hypot(e.clientX - startClickX, e.clientY - startClickY);
+    const coords = getCoords(e);
+    const dragDistance = Math.hypot(coords.x - startClickX, coords.y - startClickY);
     const isClick = dragDistance < 5;
 
     const isShape = ["line", "arrow", "rect", "circle"].includes(currentTool);
     if (isShape && currentElement) {
-      currentElement.ex = e.clientX;
-      currentElement.ey = e.clientY;
+      currentElement.ex = coords.x;
+      currentElement.ey = coords.y;
       drawingElements.push(currentElement);
       currentElement = null;
       cachedImageData = null;
@@ -1173,7 +1303,7 @@ if (!document.getElementById("draw-canvas")) {
       scheduleSave();
     } else if ((currentTool === "pen" || currentTool === "eraser") && currentElement) {
       if (currentElement.points.length === 1) {
-        currentElement.points.push({ x: e.clientX, y: e.clientY });
+        currentElement.points.push({ x: coords.x, y: coords.y });
       }
       drawingElements.push(currentElement);
       currentElement = null;
@@ -1185,7 +1315,7 @@ if (!document.getElementById("draw-canvas")) {
       // Remove the empty snapshot we pushed in startDraw
       undoStack.pop();
       updateUndoRedoButtons();
-      spawnTextInput(e.clientX, e.clientY);
+      spawnTextInput(coords.x, coords.y);
     }
   }
 
@@ -1205,12 +1335,12 @@ if (!document.getElementById("draw-canvas")) {
   canvas.addEventListener("pointerdown", startDraw);
   canvas.addEventListener("pointermove", draw);
   canvas.addEventListener("pointerup", stopDraw);
-  canvas.addEventListener("pointerleave", () => {
-    stopDraw();
+  canvas.addEventListener("pointerleave", (e) => {
+    stopDraw(e);
     removeEraserCursor();
   });
-  canvas.addEventListener("pointercancel", () => {
-    stopDraw();
+  canvas.addEventListener("pointercancel", (e) => {
+    stopDraw(e);
     removeEraserCursor();
   });
 
@@ -1349,6 +1479,7 @@ if (!document.getElementById("draw-canvas")) {
 
   function teardown() {
     window.removeEventListener("resize", resizeCanvas);
+    window.removeEventListener("scroll", handleScroll);
     canvas.removeEventListener("pointerdown", startDraw);
     canvas.removeEventListener("pointermove", draw);
     canvas.removeEventListener("pointerup", stopDraw);
