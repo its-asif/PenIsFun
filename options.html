@@ -30,6 +30,29 @@
         </div>
       </section>
 
+      <!-- Section 3: Toolbar Customization -->
+      <section class="section-card" >
+        <div class="section-header">
+          <h2>Toolbar Customization</h2>
+          <button id="resetToolbar" class="ghost" type="button">Reset Defaults</button>
+        </div>
+        <div class="section-body">
+          <p class="section-desc">Choose which drawing tools to display on your main toolbar, and subset them for the minimized mode.</p>
+          <table class="config-table">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th style="text-align: center; width: 80px;">Main</th>
+                <th style="text-align: center; width: 80px;">Minimized</th>
+              </tr>
+            </thead>
+            <tbody id="toolbarConfigBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Section 2: Shortcuts Configuration -->
       <section class="section-card">
         <div class="section-header">
@@ -70,6 +93,14 @@
             <div class="shortcut-row">
               <label for="shortcut-text">Text Tool</label>
               <input type="text" id="shortcut-text" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-laser">Laser Pointer</label>
+              <input type="text" id="shortcut-laser" class="shortcut-input" readonly placeholder="Click to record">
+            </div>
+            <div class="shortcut-row">
+              <label for="shortcut-redact">Redact Tool</label>
+              <input type="text" id="shortcut-redact" class="shortcut-input" readonly placeholder="Click to record">
             </div>
             <div class="shortcut-divider"></div>
             <div class="shortcut-row">

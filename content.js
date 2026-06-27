@@ -13,6 +13,8 @@ if (!document.getElementById("draw-canvas")) {
   let drawingElements = [];
   let legacyImage = null;
   let scrollMode = false;
+  let laserStrokes = [];
+  let laserLoopId = null;
 
   function getCoords(e) {
     if (!e) {
@@ -187,10 +189,177 @@ if (!document.getElementById("draw-canvas")) {
         ctx.font = `600 ${element.fontSize}px sans-serif`;
         ctx.textBaseline = "middle";
         ctx.fillText(element.text, element.x + 6, element.y);
+      } else if (element.type === "redact") {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+        ctx.fillRect(element.sx, element.sy, element.ex - element.sx, element.ey - element.sy);
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(element.sx, element.sy, element.ex - element.sx, element.ey - element.sy);
+        ctx.setLineDash([]);
       }
     });
 
+    // Draw fading laser pointer strokes
+    laserStrokes.forEach(stroke => {
+      const pts = stroke.points;
+      if (!pts || pts.length < 2) return;
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = stroke.color;
+      
+      // Subtle premium glow
+      ctx.shadowBlur = Math.max(4, stroke.width * 0.8);
+      ctx.shadowColor = stroke.color;
+
+      // Render the trail in 6 connected path chunks to prevent overlapping segment joint beads
+      const chunkCount = 6;
+      const pointsPerChunk = Math.ceil(pts.length / chunkCount);
+
+      for (let c = 0; c < chunkCount; c++) {
+        const startIdx = c * pointsPerChunk;
+        if (startIdx >= pts.length) break;
+
+        const endIdx = Math.min(pts.length - 1, (c + 1) * pointsPerChunk);
+        if (startIdx === endIdx) continue;
+
+        // Determine average age of this chunk to set its alpha and tapered width
+        let totalAge = 0;
+        for (let i = startIdx; i <= endIdx; i++) {
+          totalAge += Date.now() - pts[i].time;
+        }
+        const avgAge = totalAge / (endIdx - startIdx + 1);
+        const alpha = Math.max(0, 1 - avgAge / 1200);
+
+        // Taper the width dynamically towards the tail
+        ctx.lineWidth = stroke.width * Math.max(0.25, alpha);
+
+        ctx.beginPath();
+        ctx.globalAlpha = alpha;
+        ctx.moveTo(pts[startIdx].x, pts[startIdx].y);
+        
+        // Use quadratic curve midpoint interpolation for buttery smooth curved lines
+        if (endIdx - startIdx === 1) {
+          ctx.lineTo(pts[endIdx].x, pts[endIdx].y);
+        } else {
+          let i;
+          for (i = startIdx + 1; i < endIdx; i++) {
+            const xc = (pts[i].x + pts[i+1].x) / 2;
+            const yc = (pts[i].y + pts[i+1].y) / 2;
+            ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+          }
+          ctx.lineTo(pts[endIdx].x, pts[endIdx].y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // Draw active laser pointer dot
+    if (currentTool === "laser") {
+      ctx.save();
+      if (scrollMode) {
+        ctx.translate(-window.scrollX, -window.scrollY);
+      }
+
+      const idleTime = Date.now() - lastMouseMoveTime;
+      let dotAlpha = Math.max(0, 1 - idleTime / 800);
+      let dotRadius = Math.max(5, penWidth);
+
+      if (drawing && currentElement && currentElement.type === "laser" && currentElement.points.length > 0) {
+        const latestPoint = currentElement.points[currentElement.points.length - 1];
+        const age = Date.now() - latestPoint.time;
+        dotAlpha = Math.max(0, 1 - age / 1200);
+        dotRadius = currentElement.width / 2;
+      }
+
+      if (dotAlpha > 0) {
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, dotRadius, 0, 2 * Math.PI);
+        ctx.globalAlpha = dotAlpha;
+        ctx.fillStyle = penColor;
+        ctx.shadowBlur = dotRadius * 1.5;
+        ctx.shadowColor = penColor;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     ctx.restore();
+  }
+
+  function syncBlurOverlays() {
+    let container = document.getElementById("draw-blur-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "draw-blur-container";
+      container.style.position = "absolute";
+      container.style.top = "0";
+      container.style.left = "0";
+      container.style.width = "100%";
+      container.style.height = "100%";
+      container.style.pointerEvents = "none";
+      container.style.zIndex = "999997";
+      container.style.overflow = "visible";
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = "";
+
+    drawingElements.forEach((element) => {
+      if (element.type === "redact") {
+        const div = document.createElement("div");
+        const x = Math.min(element.sx, element.ex);
+        const y = Math.min(element.sy, element.ey);
+        const w = Math.abs(element.ex - element.sx);
+        const h = Math.abs(element.ey - element.sy);
+
+        div.style.position = scrollMode ? "absolute" : "fixed";
+        div.style.left = x + "px";
+        div.style.top = y + "px";
+        div.style.width = w + "px";
+        div.style.height = h + "px";
+        div.style.backdropFilter = "blur(10px) brightness(95%)";
+        div.style.webkitBackdropFilter = "blur(10px) brightness(95%)";
+        div.style.background = "rgba(15, 23, 42, 0.15)";
+        div.style.border = "1px dashed rgba(239, 68, 68, 0.4)";
+        div.style.boxSizing = "border-box";
+        div.style.pointerEvents = "none";
+        div.style.borderRadius = "4px";
+
+        container.appendChild(div);
+      }
+    });
+  }
+
+  function startLaserLoop() {
+    if (!laserLoopId) {
+      laserLoop();
+    }
+  }
+
+  function laserLoop() {
+    const now = Date.now();
+    const LASER_LIFETIME = 1200;
+
+    laserStrokes.forEach(stroke => {
+      stroke.points = stroke.points.filter(p => now - p.time < LASER_LIFETIME);
+    });
+
+    laserStrokes = laserStrokes.filter(stroke => stroke.points.length > 0);
+
+    redrawCanvas();
+
+    const idleTime = Date.now() - lastMouseMoveTime;
+    if (laserStrokes.length > 0 || (currentTool === "laser" && (drawing || idleTime < 800))) {
+      laserLoopId = requestAnimationFrame(laserLoop);
+    } else {
+      laserLoopId = null;
+    }
   }
 
   function resizeCanvas() {
@@ -203,8 +372,40 @@ if (!document.getElementById("draw-canvas")) {
 
     redrawCanvas();
   }
-  resizeCanvas();
-  window.addEventListener("resize", resizeCanvas);
+
+  const storageAvailable = typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
+
+  const defaultToolbarConfig = {
+    pen: { visible: true, mini: true },
+    highlighter: { visible: true, mini: false },
+    eraser: { visible: true, mini: true },
+    line: { visible: true, mini: false },
+    arrow: { visible: true, mini: false },
+    rect: { visible: true, mini: false },
+    circle: { visible: true, mini: false },
+    text: { visible: true, mini: false },
+    laser: { visible: true, mini: false },
+    redact: { visible: true, mini: false }
+  };
+  let toolbarConfig = { ...defaultToolbarConfig };
+
+  if (storageAvailable) {
+    chrome.storage.local.get(["drawToolbarConfig"], (result) => {
+      if (result && result.drawToolbarConfig) {
+        toolbarConfig = result.drawToolbarConfig;
+        renderToolbar();
+      }
+    });
+
+    if (chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName === "local" && changes.drawToolbarConfig) {
+          toolbarConfig = changes.drawToolbarConfig.newValue || defaultToolbarConfig;
+          renderToolbar();
+        }
+      });
+    }
+  }
 
   // Load settings
   const rawSettings = localStorage.getItem("drawSettings");
@@ -246,6 +447,7 @@ if (!document.getElementById("draw-canvas")) {
   // Segment-drawing coordinates
   let lastX = 0;
   let lastY = 0;
+  let lastMouseMoveTime = Date.now();
 
   // Shape-drawing intermediate state
   let shapeStart = null;
@@ -259,8 +461,10 @@ if (!document.getElementById("draw-canvas")) {
   let startClickX = 0;
   let startClickY = 0;
 
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
   const drawingStorageKey = "drawImage:" + location.host + location.pathname;
-  const storageAvailable = typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
 
   // === Shortcuts Configuration ===
   const defaultShortcuts = {
@@ -272,6 +476,8 @@ if (!document.getElementById("draw-canvas")) {
     rect: "Alt+6",
     circle: "Alt+7",
     text: "Alt+8",
+    laser: "Alt+9",
+    redact: "Alt+0",
     undo: "Ctrl+Z",
     redo: "Ctrl+Y",
     clear: "Ctrl+X"
@@ -368,6 +574,7 @@ if (!document.getElementById("draw-canvas")) {
     drawingElements = prev;
     updateUndoRedoButtons();
     redrawCanvas();
+    syncBlurOverlays();
     scheduleSave();
   }
 
@@ -378,6 +585,7 @@ if (!document.getElementById("draw-canvas")) {
     drawingElements = next;
     updateUndoRedoButtons();
     redrawCanvas();
+    syncBlurOverlays();
     scheduleSave();
   }
 
@@ -452,10 +660,12 @@ if (!document.getElementById("draw-canvas")) {
             img.onload = () => {
               legacyImage = img;
               redrawCanvas();
+              syncBlurOverlays();
             };
             img.src = parsed.legacyDataURL;
           } else {
             redrawCanvas();
+            syncBlurOverlays();
           }
           renderToolbar();
           return;
@@ -469,6 +679,7 @@ if (!document.getElementById("draw-canvas")) {
       img.onload = () => {
         legacyImage = img;
         redrawCanvas();
+        syncBlurOverlays();
       };
       img.src = storedData;
     });
@@ -677,6 +888,8 @@ if (!document.getElementById("draw-canvas")) {
   const rectSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
   const circleSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`;
   const textSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`;
+  const laserSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>`;
+  const redactSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`;
   
   const trashSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
   const exitSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
@@ -708,7 +921,48 @@ if (!document.getElementById("draw-canvas")) {
       maxSize = 50;
       currentVal = highlighterSize;
       labelTitle = `Highlighter size: ${highlighterSize}px`;
+    } else if (currentTool === "laser") {
+      minSize = 4;
+      maxSize = 40;
+      currentVal = penWidth;
+      labelTitle = `Laser size: ${penWidth}px`;
+    } else if (currentTool === "redact") {
+      minSize = 1;
+      maxSize = 30;
+      currentVal = penWidth;
+      labelTitle = `Redact border: ${penWidth}px`;
+    } else if (currentTool === "line" || currentTool === "arrow" || currentTool === "rect" || currentTool === "circle" || currentTool === "text") {
+      minSize = 1;
+      maxSize = 30;
+      currentVal = penWidth;
+      labelTitle = `${currentTool.charAt(0).toUpperCase() + currentTool.slice(1)} size: ${penWidth}px`;
     }
+
+    let toolsGroupHTML = "";
+    const toolDetails = {
+      pen: { svg: penSvg, title: "Pen Tool" },
+      highlighter: { svg: highlighterSvg, title: "Highlighter Tool" },
+      eraser: { svg: eraserSvg, title: "Eraser Tool" },
+      line: { svg: lineSvg, title: "Straight Line Tool" },
+      arrow: { svg: arrowSvg, title: "Arrow Annotation Tool" },
+      rect: { svg: rectSvg, title: "Rectangle Shape Tool" },
+      circle: { svg: circleSvg, title: "Circle/Ellipse Shape Tool" },
+      text: { svg: textSvg, title: "Text Annotation Tool" },
+      laser: { svg: laserSvg, title: "Laser Pointer Tool" },
+      redact: { svg: redactSvg, title: "Redact / Blur Tool" }
+    };
+
+    Object.keys(toolDetails).forEach(toolId => {
+      const show = toolbarConfig[toolId]?.visible ?? true;
+      if (show) {
+        const details = toolDetails[toolId];
+        toolsGroupHTML += `
+          <button id="tool-${toolId}" class="${currentTool === toolId ? 'active' : ''}" title="${details.title}">
+            ${details.svg}
+          </button>
+        `;
+      }
+    });
 
     return `
       <style>
@@ -734,30 +988,7 @@ if (!document.getElementById("draw-canvas")) {
         <div class="divider"></div>
 
         <div class="tools-group">
-          <button id="tool-pen" class="${currentTool === 'pen' ? 'active' : ''}" title="Pen Tool">
-            ${penSvg}
-          </button>
-          <button id="tool-highlighter" class="${currentTool === 'highlighter' ? 'active' : ''}" title="Highlighter Tool">
-            ${highlighterSvg}
-          </button>
-          <button id="tool-eraser" class="${currentTool === 'eraser' ? 'active' : ''}" title="Eraser Tool">
-            ${eraserSvg}
-          </button>
-          <button id="tool-line" class="${currentTool === 'line' ? 'active' : ''}" title="Straight Line Tool">
-            ${lineSvg}
-          </button>
-          <button id="tool-arrow" class="${currentTool === 'arrow' ? 'active' : ''}" title="Arrow Annotation Tool">
-            ${arrowSvg}
-          </button>
-          <button id="tool-rect" class="${currentTool === 'rect' ? 'active' : ''}" title="Rectangle Shape Tool">
-            ${rectSvg}
-          </button>
-          <button id="tool-circle" class="${currentTool === 'circle' ? 'active' : ''}" title="Circle/Ellipse Shape Tool">
-            ${circleSvg}
-          </button>
-          <button id="tool-text" class="${currentTool === 'text' ? 'active' : ''}" title="Text Annotation Tool">
-            ${textSvg}
-          </button>
+          ${toolsGroupHTML}
         </div>
 
         <div class="divider"></div>
@@ -786,18 +1017,39 @@ if (!document.getElementById("draw-canvas")) {
   }
 
   function miniToolbarHTML() {
+    let toolsGroupMiniHTML = "";
+    const toolDetails = {
+      pen: { svg: penSvg, title: "Pen Tool" },
+      highlighter: { svg: highlighterSvg, title: "Highlighter Tool" },
+      eraser: { svg: eraserSvg, title: "Eraser Tool" },
+      line: { svg: lineSvg, title: "Straight Line Tool" },
+      arrow: { svg: arrowSvg, title: "Arrow Annotation Tool" },
+      rect: { svg: rectSvg, title: "Rectangle Shape Tool" },
+      circle: { svg: circleSvg, title: "Circle/Ellipse Shape Tool" },
+      text: { svg: textSvg, title: "Text Annotation Tool" },
+      laser: { svg: laserSvg, title: "Laser Pointer Tool" },
+      redact: { svg: redactSvg, title: "Redact / Blur Tool" }
+    };
+
+    Object.keys(toolDetails).forEach(toolId => {
+      const show = (toolbarConfig[toolId]?.visible ?? true) && (toolbarConfig[toolId]?.mini ?? (toolId === "pen" || toolId === "eraser"));
+      if (show) {
+        const details = toolDetails[toolId];
+        toolsGroupMiniHTML += `
+          <button id="tool-${toolId}-mini" class="${currentTool === toolId ? 'active' : ''}" title="${details.title}">
+            ${details.svg}
+          </button>
+        `;
+      }
+    });
+
     return `
       <style>
         ${toolbarStyles}
       </style>
       <div id="draw-toolbar" class="minimized ${darkMode ? 'dark' : ''}">
         <div class="core">
-          <button id="tool-pen-mini" class="${currentTool === 'pen' ? 'active' : ''}" title="Pen Tool">
-            ${penSvg}
-          </button>
-          <button id="tool-eraser-mini" class="${currentTool === 'eraser' ? 'active' : ''}" title="Eraser Tool">
-            ${eraserSvg}
-          </button>
+          ${toolsGroupMiniHTML}
           <button id="toggle-scroll-mini" title="${scrollMode ? 'Switch to Viewport Mode' : 'Switch to Scrollable Mode'}">
             ${scrollMode ? scrollSvg : viewportSvg}
           </button>
@@ -851,6 +1103,7 @@ if (!document.getElementById("draw-canvas")) {
     legacyImage = null; // Clear migrated raster image
     updateUndoRedoButtons();
     redrawCanvas();
+    syncBlurOverlays();
     removeDrawingData();
   }
 
@@ -868,8 +1121,7 @@ if (!document.getElementById("draw-canvas")) {
     const toggleScrollBtn = shadowRoot.getElementById("toggle-scroll");
     const toggleScrollMiniBtn = shadowRoot.getElementById("toggle-scroll-mini");
 
-    const penMini = shadowRoot.getElementById("tool-pen-mini");
-    const eraserMini = shadowRoot.getElementById("tool-eraser-mini");
+
 
     if (colorInput) {
       colorInput.addEventListener("input", (e) => {
@@ -888,7 +1140,7 @@ if (!document.getElementById("draw-canvas")) {
           sizeInput.parentElement.setAttribute("title", `Highlighter size: ${highlighterSize}px`);
         } else {
           penWidth = val;
-          sizeInput.parentElement.setAttribute("title", `Pen size: ${penWidth}px`);
+          sizeInput.parentElement.setAttribute("title", `${currentTool.charAt(0).toUpperCase() + currentTool.slice(1)} size: ${penWidth}px`);
         }
         saveSettings();
       });
@@ -914,6 +1166,7 @@ if (!document.getElementById("draw-canvas")) {
       saveSettings();
       renderToolbar();
       redrawCanvas();
+      syncBlurOverlays();
       removeDrawingData();
       updateUndoRedoButtons();
     };
@@ -925,24 +1178,18 @@ if (!document.getElementById("draw-canvas")) {
       toggleScrollMiniBtn.addEventListener("click", handleToggleScroll);
     }
 
-    if (penMini) {
-      penMini.addEventListener("click", () => {
-        selectTool("pen");
-      });
-    }
-
-    if (eraserMini) {
-      eraserMini.addEventListener("click", () => {
-        selectTool("eraser");
-      });
-    }
-
     // Bind tools group selection
-    const tools = ["pen", "highlighter", "eraser", "line", "arrow", "rect", "circle", "text"];
+    const tools = ["pen", "highlighter", "eraser", "laser", "redact", "line", "arrow", "rect", "circle", "text"];
     tools.forEach(tool => {
       const btn = shadowRoot.getElementById(`tool-${tool}`);
       if (btn) {
         btn.addEventListener("click", () => {
+          selectTool(tool);
+        });
+      }
+      const btnMini = shadowRoot.getElementById(`tool-${tool}-mini`);
+      if (btnMini) {
+        btnMini.addEventListener("click", () => {
           selectTool(tool);
         });
       }
@@ -977,6 +1224,8 @@ if (!document.getElementById("draw-canvas")) {
       canvas.remove();
       host.remove();
       removeEraserCursor();
+      const blurContainer = document.getElementById("draw-blur-container");
+      if (blurContainer) blurContainer.remove();
     });
 
     minimizeBtn.addEventListener("click", () => {
@@ -1033,6 +1282,14 @@ if (!document.getElementById("draw-canvas")) {
     } else if (tool === "rect") {
       ctx.rect(sx, sy, ex - sx, ey - sy);
       ctx.stroke();
+    } else if (tool === "redact") {
+      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+      ctx.fillRect(sx, sy, ex - sx, ey - sy);
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.8)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(sx, sy, ex - sx, ey - sy);
+      ctx.setLineDash([]);
     } else if (tool === "circle") {
       const rx = Math.abs(ex - sx) / 2;
       const ry = Math.abs(ey - sy) / 2;
@@ -1137,12 +1394,15 @@ if (!document.getElementById("draw-canvas")) {
     startClickY = coords.y;
     lastX = coords.x;
     lastY = coords.y;
+    lastMouseMoveTime = Date.now();
 
-    pushUndoSnapshot();
-    clearRedoStack();
-    updateUndoRedoButtons();
+    if (currentTool !== "laser") {
+      pushUndoSnapshot();
+      clearRedoStack();
+      updateUndoRedoButtons();
+    }
 
-    const isShape = ["line", "arrow", "rect", "circle"].includes(currentTool);
+    const isShape = ["line", "arrow", "rect", "circle", "redact"].includes(currentTool);
     if (isShape) {
       currentElement = {
         type: currentTool,
@@ -1176,16 +1436,35 @@ if (!document.getElementById("draw-canvas")) {
         points: [{ x: coords.x, y: coords.y }],
         width: eraserSize
       };
+    } else if (currentTool === "laser") {
+      currentElement = {
+        type: "laser",
+        points: [{ x: coords.x, y: coords.y, time: Date.now() }],
+        color: penColor,
+        width: Math.max(6, penWidth * 2)
+      };
+      laserStrokes.push(currentElement);
+      startLaserLoop();
     }
     updateCursor(e);
   }
 
   function draw(e) {
     updateCursor(e);
+    const coords = getCoords(e);
+    if (currentTool === "laser") {
+      lastX = coords.x;
+      lastY = coords.y;
+      lastMouseMoveTime = Date.now();
+      startLaserLoop();
+      if (!drawing && !laserLoopId) {
+        redrawCanvas();
+      }
+    }
+
     if (!drawing || !currentElement) return;
 
-    const coords = getCoords(e);
-    const isShape = ["line", "arrow", "rect", "circle"].includes(currentTool);
+    const isShape = ["line", "arrow", "rect", "circle", "redact"].includes(currentTool);
     if (isShape) {
       currentElement.ex = coords.x;
       currentElement.ey = coords.y;
@@ -1275,6 +1554,12 @@ if (!document.getElementById("draw-canvas")) {
 
       lastX = coords.x;
       lastY = coords.y;
+    } else if (currentTool === "laser") {
+      const lastPoint = currentElement.points[currentElement.points.length - 1];
+      const dist = Math.hypot(coords.x - lastPoint.x, coords.y - lastPoint.y);
+      if (dist > 3) {
+        currentElement.points.push({ x: coords.x, y: coords.y, time: Date.now() });
+      }
     }
   }
 
@@ -1286,7 +1571,7 @@ if (!document.getElementById("draw-canvas")) {
     const dragDistance = Math.hypot(coords.x - startClickX, coords.y - startClickY);
     const isClick = dragDistance < 5;
 
-    const isShape = ["line", "arrow", "rect", "circle"].includes(currentTool);
+    const isShape = ["line", "arrow", "rect", "circle", "redact"].includes(currentTool);
     if (isShape && currentElement) {
       currentElement.ex = coords.x;
       currentElement.ey = coords.y;
@@ -1294,6 +1579,7 @@ if (!document.getElementById("draw-canvas")) {
       currentElement = null;
       cachedImageData = null;
       redrawCanvas();
+      syncBlurOverlays();
       scheduleSave();
     } else if (currentTool === "highlighter" && currentElement) {
       drawingElements.push(currentElement);
@@ -1309,6 +1595,8 @@ if (!document.getElementById("draw-canvas")) {
       currentElement = null;
       redrawCanvas();
       scheduleSave();
+    } else if (currentTool === "laser") {
+      currentElement = null;
     }
 
     if (currentTool === "text" && isClick) {
@@ -1323,6 +1611,9 @@ if (!document.getElementById("draw-canvas")) {
     if (currentTool === "eraser") {
       canvas.style.cursor = "none";
       showEraserCursor(e.clientX, e.clientY);
+    } else if (currentTool === "laser") {
+      canvas.style.cursor = "none";
+      removeEraserCursor();
     } else if (currentTool === "text") {
       canvas.style.cursor = "text";
       removeEraserCursor();
@@ -1338,10 +1629,20 @@ if (!document.getElementById("draw-canvas")) {
   canvas.addEventListener("pointerleave", (e) => {
     stopDraw(e);
     removeEraserCursor();
+    if (currentTool === "laser") {
+      lastX = -100;
+      lastY = -100;
+      redrawCanvas();
+    }
   });
   canvas.addEventListener("pointercancel", (e) => {
     stopDraw(e);
     removeEraserCursor();
+    if (currentTool === "laser") {
+      lastX = -100;
+      lastY = -100;
+      redrawCanvas();
+    }
   });
 
   // === Eraser Hover Preview ===
@@ -1455,6 +1756,14 @@ if (!document.getElementById("draw-canvas")) {
       e.preventDefault();
       e.stopPropagation();
       selectTool("text");
+    } else if (matchShortcut(e, shortcuts.laser)) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectTool("laser");
+    } else if (matchShortcut(e, shortcuts.redact)) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectTool("redact");
     } else if (matchShortcut(e, shortcuts.undo)) {
       e.preventDefault();
       e.stopPropagation();
@@ -1494,6 +1803,14 @@ if (!document.getElementById("draw-canvas")) {
     if (activeTextInput) {
       activeTextInput.remove();
       activeTextInput = null;
+    }
+    if (laserLoopId) {
+      cancelAnimationFrame(laserLoopId);
+      laserLoopId = null;
+    }
+    const blurContainer = document.getElementById("draw-blur-container");
+    if (blurContainer) {
+      blurContainer.remove();
     }
     drawing = false;
   }

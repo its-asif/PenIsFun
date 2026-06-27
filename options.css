@@ -301,7 +301,71 @@ button:disabled {
     align-items: flex-start;
   }
 
-  .danger {
-    align-self: flex-end;
+    .danger {
+      align-self: flex-end;
+    }
   }
+}
+
+.config-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.config-table th, .config-table td {
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-table th {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.config-table td {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.config-table tr:last-child td {
+  border-bottom: none;
+}
+
+.config-table input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.config-table input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.config-table input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: #03111b;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.config-table input[type="checkbox"]:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }

@@ -15,12 +15,14 @@ const defaultShortcuts = {
   rect: "Alt+6",
   circle: "Alt+7",
   text: "Alt+8",
+  laser: "Alt+9",
+  redact: "Alt+0",
   undo: "Ctrl+Z",
   redo: "Ctrl+Y",
   clear: "Ctrl+X"
 };
 
-const shortcutKeys = ["pen", "highlighter", "eraser", "line", "arrow", "rect", "circle", "text", "undo", "redo", "clear"];
+const shortcutKeys = ["pen", "highlighter", "eraser", "line", "arrow", "rect", "circle", "text", "laser", "redact", "undo", "redo", "clear"];
 
 document.addEventListener("DOMContentLoaded", () => {
   clearAllBtn.addEventListener("click", handleClearAll);
@@ -30,9 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
     resetShortcutsBtn.addEventListener("click", handleResetShortcuts);
   }
 
+  const resetToolbarBtn = document.getElementById("resetToolbar");
+  if (resetToolbarBtn) {
+    resetToolbarBtn.addEventListener("click", handleResetToolbar);
+  }
+
   setupShortcuts();
   refreshList();
   loadShortcuts();
+  setupToolbarConfig();
 });
 
 function refreshList() {
@@ -215,5 +223,120 @@ function setupShortcuts() {
         });
       });
     });
+  });
+}
+
+// === Toolbar Customization Management ===
+const toolsList = [
+  { id: "pen", label: "Pen Tool" },
+  { id: "highlighter", label: "Highlighter" },
+  { id: "eraser", label: "Eraser" },
+  { id: "line", label: "Line Tool" },
+  { id: "arrow", label: "Arrow Tool" },
+  { id: "rect", label: "Rectangle Tool" },
+  { id: "circle", label: "Circle Tool" },
+  { id: "text", label: "Text Tool" },
+  { id: "laser", label: "Laser Pointer" },
+  { id: "redact", label: "Redact Tool" }
+];
+
+const defaultToolbarConfig = {
+  pen: { visible: true, mini: true },
+  highlighter: { visible: true, mini: false },
+  eraser: { visible: true, mini: true },
+  line: { visible: true, mini: false },
+  arrow: { visible: true, mini: false },
+  rect: { visible: true, mini: false },
+  circle: { visible: true, mini: false },
+  text: { visible: true, mini: false },
+  laser: { visible: true, mini: false },
+  redact: { visible: true, mini: false }
+};
+
+function setupToolbarConfig() {
+  chrome.storage.local.get(["drawToolbarConfig"], (result) => {
+    const config = result.drawToolbarConfig || defaultToolbarConfig;
+    renderToolbarConfigTable(config);
+  });
+}
+
+function renderToolbarConfigTable(config) {
+  const tbody = document.getElementById("toolbarConfigBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  toolsList.forEach(tool => {
+    const tr = document.createElement("tr");
+
+    // Tool label cell
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = tool.label;
+    tr.appendChild(tdLabel);
+
+    // Visible checkbox cell
+    const tdVisible = document.createElement("td");
+    tdVisible.style.textAlign = "center";
+    const cbVisible = document.createElement("input");
+    cbVisible.type = "checkbox";
+    cbVisible.checked = config[tool.id]?.visible ?? true;
+    tdVisible.appendChild(cbVisible);
+    tr.appendChild(tdVisible);
+
+    // Minimized checkbox cell
+    const tdMini = document.createElement("td");
+    tdMini.style.textAlign = "center";
+    const cbMini = document.createElement("input");
+    cbMini.type = "checkbox";
+    cbMini.checked = config[tool.id]?.mini ?? false;
+    cbMini.disabled = !cbVisible.checked;
+    tdMini.appendChild(cbMini);
+    tr.appendChild(tdMini);
+
+    // Event listeners
+    cbVisible.addEventListener("change", () => {
+      cbMini.disabled = !cbVisible.checked;
+      if (!cbVisible.checked) {
+        cbMini.checked = false;
+      }
+      saveToolbarConfig();
+    });
+
+    cbMini.addEventListener("change", () => {
+      saveToolbarConfig();
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function saveToolbarConfig() {
+  const config = {};
+  toolsList.forEach(tool => {
+    const trs = document.querySelectorAll("#toolbarConfigBody tr");
+    let foundTr = null;
+    for (let tr of trs) {
+      if (tr.firstElementChild.textContent === tool.label) {
+        foundTr = tr;
+        break;
+      }
+    }
+    if (foundTr) {
+      const inputs = foundTr.querySelectorAll("input[type='checkbox']");
+      config[tool.id] = {
+        visible: inputs[0].checked,
+        mini: inputs[1].checked
+      };
+    }
+  });
+
+  chrome.storage.local.set({ drawToolbarConfig: config }, () => {
+    showStatus("Updated toolbar configuration.", false);
+  });
+}
+
+function handleResetToolbar() {
+  chrome.storage.local.set({ drawToolbarConfig: defaultToolbarConfig }, () => {
+    showStatus("Reset toolbar configuration to defaults.", false);
+    setupToolbarConfig();
   });
 }
