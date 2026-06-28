@@ -259,27 +259,31 @@ if (!document.getElementById("draw-canvas")) {
       ctx.restore();
     });
 
-    // Draw active laser pointer dot
+    ctx.restore();
+
+    // Draw active laser pointer dot — must be drawn AFTER outer ctx.restore()
+    // so we're back in raw canvas (viewport) space. lastX/lastY are page coords
+    // in scroll mode, so we subtract scroll offsets to get viewport position.
     if (currentTool === "laser") {
       ctx.save();
-      if (scrollMode) {
-        ctx.translate(-window.scrollX, -window.scrollY);
-      }
 
       const idleTime = Date.now() - lastMouseMoveTime;
       let dotAlpha = Math.max(0, 1 - idleTime / 800);
-      let dotRadius = Math.max(5, penWidth);
+      let dotRadius = Math.max(1.5, penWidth / 4);
 
       if (drawing && currentElement && currentElement.type === "laser" && currentElement.points.length > 0) {
         const latestPoint = currentElement.points[currentElement.points.length - 1];
         const age = Date.now() - latestPoint.time;
         dotAlpha = Math.max(0, 1 - age / 1200);
-        dotRadius = currentElement.width / 2;
+        dotRadius = Math.max(1.5, currentElement.width / 8);
       }
 
       if (dotAlpha > 0) {
+        const dotX = scrollMode ? lastX - window.scrollX : lastX;
+        const dotY = scrollMode ? lastY - window.scrollY : lastY;
+
         ctx.beginPath();
-        ctx.arc(lastX, lastY, dotRadius, 0, 2 * Math.PI);
+        ctx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
         ctx.globalAlpha = dotAlpha;
         ctx.fillStyle = penColor;
         ctx.shadowBlur = dotRadius * 1.5;
@@ -288,8 +292,6 @@ if (!document.getElementById("draw-canvas")) {
       }
       ctx.restore();
     }
-
-    ctx.restore();
   }
 
   function syncBlurOverlays() {
@@ -1441,7 +1443,7 @@ if (!document.getElementById("draw-canvas")) {
         type: "laser",
         points: [{ x: coords.x, y: coords.y, time: Date.now() }],
         color: penColor,
-        width: Math.max(6, penWidth * 2)
+        width: Math.max(1.5, penWidth / 2)
       };
       laserStrokes.push(currentElement);
       startLaserLoop();
